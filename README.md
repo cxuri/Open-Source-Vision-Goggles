@@ -16,3 +16,8 @@ A brief description of what your project does and its purpose.
 ## Installation
 
 1. Clone the repository:
+
+``` git clone http://github.com/cxuri/ovg ```
+ 
+2. Navigate to the project directory:
+
