@@ -17,7 +17,9 @@ A brief description of what your project does and its purpose.
 
 1. Clone the repository:
 
-``` git clone http://github.com/cxuri/ovg ```
+```
+git clone http://github.com/cxuri/ovg
+ ```
  
 2. Navigate to the project directory:
 
@@ -25,7 +27,9 @@ A brief description of what your project does and its purpose.
 
 3. Create a VirtualEnvironment
 
-``` python -m venv Core ```
+```
+python -m venv Core
+```
 
 4. Activate virtual Environment
 
@@ -40,7 +44,9 @@ A brief description of what your project does and its purpose.
 
 5. Install dependencies
 
-``` pip install -r requirements.txt ```
+```
+pip install -r requirements.txt
+ ```
 
 6. After the install, copy the xml files to Core/lib/cv2/data folder respectively
 
