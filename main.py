@@ -6,10 +6,12 @@ from db import read, modify
 from conv import conversation
 import os
 from datetime import datetime
+from wiki import get_wikipedia_summary
 
 queue = multiprocessing.Queue()
 
 # Initialize settings
+global dataset
 filename = "settings.json"
 filepath = os.path.join(os.getcwd(), 'db', filename)
 dataset = read(filepath)
@@ -25,15 +27,60 @@ cascades = {
     "ped": cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_fullbody.xml')
 }
 
-# Initialize speech recognition
-recognizer = sr.Recognizer()
-engine = pyttsx3.init()
+# Function to listen for voice commands
+def recognize_speech():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("Please speak something...")
+        recognizer.adjust_for_ambient_noise(source)
+        audio = recognizer.listen(source)
 
-# Function to speak out text
+    print("Recognizing...")
+    try:
+        text = recognizer.recognize_google(audio).lower().strip("?!.,;:'")
+        print("You said:", text)
+        return text
+    except sr.UnknownValueError:
+        print("Sorry, could not understand audio.")
+    except sr.RequestError as e:
+        print(f"Could not request results: {e}")
+    return None
+
 def say(text):
+    reload_config()
+    engine = pyttsx3.init()
+    rate = int(dataset["speech-rate"])
+    gender = int(dataset["gender"])
+    volume = float(dataset["volume"])
+    voices = engine.getProperty('voices')
+    engine.setProperty('voice', voices[gender].id)
+    engine.setProperty('volume', volume)
+    engine.setProperty('rate', rate)
+
     engine.say(text)
     engine.runAndWait()
 
+def process_text(text, queue=None):
+    settings(text)
+    cv(text, queue)
+    res = conversation(text)
+    say(res)
+    if text is not None:
+        words = text.split()
+        if words and words[0].lower() == "search":
+            # Search Wikipedia for the rest of the words
+            query = ' '.join(words[1:])
+            result = get_wikipedia_summary(query)
+            say(result)
+        else:
+            print("No 'search' command detected.")
+
+def voice_loop(queue=None):
+    while True:
+        text = recognize_speech()
+        if text in ["stop", "exit", "break"]:
+            break
+        process_text(text, queue)
 # Function to reload settings from file
 def reload_config():
     global dataset
@@ -88,140 +135,90 @@ def settings(query):
         pass
 
 def cv(query, queue=None):
-    result_cascades = queue.get()
-    current_time = datetime.now()
-    a = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    cars = result_cascades["cars"]
-    bikes = result_cascades["bikes"]
-    buses = result_cascades["buses"]
-    peds = result_cascades["peds"]
-    faces = result_cascades["faces"]
-    smiles = result_cascades["smiles"]
+    print(queue)
+    if queue is not None:
+        print(queue)
+        result_cascades = queue.get()
+        current_time = datetime.now()
+        a = current_time.strftime("%Y-%m-%d %H:%M:%S")
+        cars = result_cascades["cars"]
+        bikes = result_cascades["bikes"]
+        buses = result_cascades["buses"]
+        peds = result_cascades["peds"]
+        faces = result_cascades["faces"]
+        smiles = result_cascades["smiles"]
 
-    response = ""
+        response = ""
 
-    if query in ["what's around me", "what do you see"]:
-        response = "I see"
-        if cars > 0:
-            response += f" {cars} cars,"
-        if bikes > 0:
-            response += f" {bikes} motorbikes,"
-        if buses > 0:
-            response += f" {buses} buses,"
-        if peds > 0:
-            response += f" {peds} pedestrians,"
-        if faces > 0:
-            response += f" {faces} faces,"
-        if smiles > 0:
-            response += f" and {smiles} smiles."
-        if response == "I see":
-            response += " nothing of interest around me."
-        else:
-            response = response.rstrip(',') + " around me."
-    elif query in ["whats the time", "tell me the time", "time now"]:
-        response = a
-    elif query == "How many cars are there":
-        response = f"I detect {cars} cars nearby."
-
-    elif query == "How many motorbikes are there":
-        response = f"I detect {bikes} motorbikes nearby."
-
-    elif query == "How many buses are there":
-        response = f"I detect {buses} buses nearby."
-
-    elif query == "How many pedestrians are there":
-        response = f"I detect {peds} pedestrians nearby."
-
-    elif query == "How many faces are there":
-        response = f"I detect {faces} faces nearby."
-
-    elif query == "How many smiles are there":
-        response = f"I detect {smiles} smiles nearby."
-
-    else:
-        response = "Sorry, I didn't understand that."
-
-    say(response)
-
-# Function to listen for voice commands
-def voice(queue=None):
-    while True:
-        try:
-            reload_config()
-
-            rate = int(dataset["speech-rate"])
-            gender = int(dataset["gender"])
-            volume = float(dataset["volume"])
-
-            voices = engine.getProperty('voices')
-            engine.setProperty('voice', voices[gender].id)
-            engine.setProperty('volume', volume)
-            engine.setProperty('rate', rate)
-
-            with sr.Microphone() as source:
-                print("Please speak something...")
-                recognizer.adjust_for_ambient_noise(source)
-                audio = recognizer.listen(source)
-
-            print("Recognizing...")
-            text = recognizer.recognize_google(audio).lower().strip("?!.,;:'''")
-            print("You said:", text)
-
-            settings(text)
-            if queue is not None:
-                cv(text , queue)
+        if query in ["what's around me", "what do you see"]:
+            response = "I see"
+            if cars > 0:
+                response += f" {cars} cars,"
+            if bikes > 0:
+                response += f" {bikes} motorbikes,"
+            if buses > 0:
+                response += f" {buses} buses,"
+            if peds > 0:
+                response += f" {peds} pedestrians,"
+            if faces > 0:
+                response += f" {faces} faces,"
+            if smiles > 0:
+                response += f" and {smiles} smiles."
+            if response == "I see":
+                response += " nothing of interest around me."
             else:
-                cv(text)
-            res = conversation(text)
-            say(res)
+                response = response.rstrip(',') + " around me."
+        elif query in ["whats the time", "tell me the time", "time now"]:
+            response = a
+        elif query == "How many cars are there":
+            response = f"I detect {cars} cars nearby."
 
-        except sr.UnknownValueError:
-            say("Sorry, could not understand audio.")
-        except sr.RequestError as e:
-            say(f"Could not request results: {e}")
+        elif query == "How many motorbikes are there":
+            response = f"I detect {bikes} motorbikes nearby."
 
-# Function to draw rectangles and labels on the image
-def put(img, x, y, w, h, color, thick, text):
-    cv2.rectangle(img, (x, y), (x+w, y+h), color, thick)
-    cv2.putText(img, text, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+        elif query == "How many buses are there":
+            response = f"I detect {buses} buses nearby."
 
-# Function to check if two rectangles are colliding
-def is_colliding(rect1, rect2):
-    if len(rect1) < 4 or len(rect2) < 4:
-        return False
-    x1, y1, w1, h1 = rect1
-    x2, y2, w2, h2 = rect2
+        elif query == "How many pedestrians are there":
+            response = f"I detect {peds} pedestrians nearby."
 
-    if (x1 < x2 + w2 and x1 + w1 > x2 and y1 < y2 + h2 and y1 + h1 > y2) or \
-            (x2 < x1 + w1 and x2 + w2 > x1 and y2 < y1 + h1 and y2 + h2 > y1):
-        return True
-    else:
-        return False
- 
+        elif query == "How many faces are there":
+            response = f"I detect {faces} faces nearby."
 
-# Function to check if rect1 is within rect2
-def check(rect1, rect2):
-    if len(rect1) < 4 or len(rect2) < 4:
-        return False
-    x1, y1, w1, h1 = rect1
-    x2, y2, w2, h2 = rect2
-    if x1 >= x2 and y1 >= y2 and x1 + w1 <= x2 + w2 and y1 + h1 <= y2 + h2:
-        print("true")
-        return True
-    else:
-        print("false")
-        return False
+        elif query == "How many smiles are there":
+            response = f"I detect {smiles} smiles nearby."
 
-# Main loop for video capture and face detection
+        else:
+            response = "Sorry, I didn't understand that."
+
+        say(response)
+
+
+
 def main_loop(queue=None):
-    url = input("enter stream url:")
-    cap = cv2.VideoCapture(url)
+    url = ""
+    url2 = 0
+    def put(img, x, y, w, h, color, thick, text):
+        cv2.rectangle(img, (x, y), (x+w, y+h), color, thick)
+        cv2.putText(img, text, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+
+    def is_inside(rect1, rect2):
+        if len(rect1) < 4 or len(rect2) < 4:
+            return False
+
+        x1, y1, w1, h1 = rect1
+        x2, y2, w2, h2 = rect2
+
+        return (x1 >= x2 and y1 >= y2 and 
+                x1 + w1 <= x2 + w2 and 
+                y1 + h1 <= y2 + h2)
+
+    cap = cv2.VideoCapture(0)
 
     while True:
         ret, img = cap.read()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        global result_cascades
         result_cascades = {
             "faces": 0,
             "smiles": 0,
@@ -231,81 +228,61 @@ def main_loop(queue=None):
             "buses": 0,
             "peds": 0,
         }
-
+        #Face Cascades
         faces = cascades["face"].detectMultiScale(gray, 1.1, 5, minSize=(30, 30))
-        smiles = cascades["smile"].detectMultiScale(gray, 1.1, 5, minSize=(30, 30))
+        smiles = cascades["smile"].detectMultiScale(gray, 1.5, 15, minSize=(30, 30))
         plates = cascades["plate"].detectMultiScale(gray, 1.1, 5, minSize=(30, 30))
         cars = cascades["car"].detectMultiScale(gray, 1.1, 5, minSize=(30, 30))
         bikes = cascades["bike"].detectMultiScale(gray, 1.08, 2, minSize=(30, 30))
         buses = cascades["bus"].detectMultiScale(gray, 1.1, 5, minSize=(30, 30))
         peds = cascades["ped"].detectMultiScale(gray, 1.1, 5, minSize=(30, 30))
 
-        if faces is not None:
-            for (x, y, w, h) in faces:
-                result_cascades["faces"] += 1
-                put(img, x, y, w, h, (147, 20, 255), 2, "face")  # Red for faces in BGR
-                if smiles is not None:
-                    for (x1, y1, w1, h1) in smiles:
-                        if check((x1, y1, w1, h1), (x, y, w, h)):
-                            put(img, x1, y1, w1, h1, (150, 50, 0), 2, "smile")  # Custom color for smiles
-                            result_cascades["smiles"] += 1
-                            if result_cascades["smiles"] > result_cascades["faces"]:
-                                result_cascades["smiles"] = result_cascades["faces"]
+        for (x, y, w, h) in faces:
+            result_cascades["faces"] += 1
+            put(img, x, y, w, h, (147, 20, 255), 2, "face")  # Red for faces in BGR
 
-        if bikes is not None:
-            for (xb, yb, wb, hb) in bikes:
-                if faces is not None and len(faces) > 0:
-                    for (x, y, w, h) in faces:
-                        if not check((xb, yb, wb, hb), (x, y, w, h)):
-                            put(img, xb, yb, wb, hb, (0, 0, 255), 2, "Vehicle")  # Red for vehicles in BGR
-                            result_cascades["bikes"] += 1
-                else:
-                    put(img, xb, yb, wb, hb, (0, 0, 255), 2, "Vehicle")
-                    result_cascades["bikes"] += 1
+            # Check for smiles within the face rectangle
+            for (x1, y1, w1, h1) in smiles:
+                smile_inside_face = any(is_inside((x1, y1, w1, h1), face_rect) for face_rect in faces)
+                if not smile_inside_face:
+                    put(img, x1, y1, w1, h1, (150, 50, 0), 2, "smile")  # Custom color for smiles
+                    result_cascades["smiles"] += 1
+                    if result_cascades["smiles"] > result_cascades["faces"]:
+                        result_cascades["smiles"] = result_cascades["faces"]
 
-        if peds is not None:
-            for (xp, yp, wp, hp) in peds:
-                if faces is not None and len(faces) > 0:
-                    for (x, y, w, h) in faces:
-                        if not check((xp, yp, wp, hp), (x, y, w, h)):
-                            put(img, xp, yp, wp, hp, (0, 0, 100), 2, "Pedestrian")  # Red for pedestrians in BGR
-                            result_cascades["peds"] += 1
-                else:
-                    put(img, xp, yp, wp, hp, (0, 0, 100), 2, "Pedestrian")
-                    result_cascades["peds"] += 1
+        # Check for other cascades and draw if not inside any face
+        for (xb, yb, wb, hb) in bikes:
+            bike_inside_face = any(is_inside((xb, yb, wb, hb), face_rect) for face_rect in faces)
+            if not bike_inside_face:
+                put(img, xb, yb, wb, hb, (0, 0, 255), 2, "Vehicle")  # Red for vehicles in BGR
+                result_cascades["bikes"] += 1
 
-        if cars is not None:
-            for (xc, yc, wc, hc) in cars:
-                if faces is not None and len(faces) > 0:
-                    for (x, y, w, h) in faces:
-                        if not check((xc, yc, wc, hc), (x, y, w, h)) and not is_colliding((xc, yc, wc, hc), (x, y, w, h)):
-                            put(img, xc, yc, wc, hc, (0, 0, 255), 2, "Car")
-                            result_cascades["cars"] += 1
-                else:
-                    put(img, xc, yc, wc, hc, (0, 0, 255), 2, "Car")
-                    result_cascades["cars"] += 1
+        for (xp, yp, wp, hp) in peds:
+            ped_inside_face = any(is_inside((xp, yp, wp, hp), face_rect) for face_rect in faces) 
+            if not ped_inside_face:
+                put(img, xp, yp, wp, hp, (0, 0, 100), 2, "Pedestrian")  # Red for pedestrians in BGR
+                result_cascades["peds"] += 1
 
-        if buses is not None:
-            for (xbu, ybu, wbu, hbu) in buses:
-                if faces is not None and len(faces) > 0:
-                    for (x, y, w, h) in faces:
-                        if not check((xbu, ybu, wbu, hbu), (x, y, w, h)) and not is_colliding((xbu, ybu, wbu, hbu), (x, y, w, h)):
-                            put(img, xbu, ybu, wbu, hbu, (0, 0, 255), 2, "Bus")
-                            result_cascades["buses"] += 1
-                else:
-                    put(img, xbu, ybu, wbu, hbu, (0, 0, 255), 2, "Bus")
-                    result_cascades["buses"] += 1
+        for (xc, yc, wc, hc) in cars:
+            car_inside_face = any(is_inside((xc, yc, wc, hc), face_rect) for face_rect in faces)
+            if not car_inside_face:
+                put(img, xc, yc, wc, hc, (0, 0, 255), 2, "Car")
+                result_cascades["cars"] += 1
 
-        if plates is not None:
-            for (xp, yp, wp, hp) in plates:
-                if faces is not None and len(faces) > 0:
-                    for (x, y, w, h) in faces:
-                        if not check((xp, yp, wp, hp), (x, y, w, h)) and not is_colliding((xp, yp, wp, hp), (x, y, w, h)):
-                            put(img, xp, yp, wp, hp, (0, 255, 255), 2, "Plate")
-                            result_cascades["plates"] += 1
+        for (xbu, ybu, wbu, hbu) in buses:
+            bus_inside_face = any(is_inside((xbu, ybu, wbu, hbu), face_rect) for face_rect in faces)
+            if not bus_inside_face:
+                put(img, xbu, ybu, wbu, hbu, (0, 0, 255), 2, "Bus")
+                result_cascades["buses"] += 1
 
-        cv2.imshow('Face Detection', img)
+        for (xp, yp, wp, hp) in plates:
+            plate_inside_face = any(is_inside((xp, yp, wp, hp), face_rect) for face_rect in faces)
+            if not plate_inside_face:
+                put(img, xp, yp, wp, hp, (0, 255, 255), 2, "Plate")
+                result_cascades["plates"] += 1
+
         queue.put(result_cascades)
+        cv2.imshow('Face Detection', img)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
@@ -313,10 +290,10 @@ def main_loop(queue=None):
     cv2.destroyAllWindows()
 
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     # Start voice and main loop processes
-    voice_p = multiprocessing.Process(target=voice, args=(queue,))
+    voice_p = multiprocessing.Process(target=voice_loop, args=(queue,))
     main_p = multiprocessing.Process(target=main_loop, args=(queue,))
 
     voice_p.start()
