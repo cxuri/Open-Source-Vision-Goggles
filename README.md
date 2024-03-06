@@ -16,7 +16,7 @@ The OVG project utilizes the ESP32-CAM module to capture and stream live video f
 
 1. **Clone the repository:**
    ```bash
-   git clone http://github.com/cxuri/ovg
+   git clone http://github.com/cxuri/OVG
    ```
 
 2. **Navigate to the project directory:**
@@ -45,7 +45,7 @@ The OVG project utilizes the ESP32-CAM module to capture and stream live video f
    ```
 
 6. **Copy XML files:**
-   After installation, copy the XML files to `Core/lib/cv2/data` folder respectively.
+   After installation, copy the XML files to `env/lib/cv2/data` folder respectively.
 
 7. **Run the project:**
    ```bash
