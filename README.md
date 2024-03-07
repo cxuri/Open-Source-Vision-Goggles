@@ -16,7 +16,7 @@ The OVG project utilizes the ESP32-CAM module to capture and stream live video f
 
 1. **Clone the repository:**
    ```bash
-   git clone http://github.com/cxuri/OVG
+   git clone http://github.com/cxuri/Open-source-Vision-Goggles
    ```
 
 2. **Navigate to the project directory:**
