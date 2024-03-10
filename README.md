@@ -55,6 +55,9 @@ The OVG project utilizes the ESP32-CAM module to capture and stream live video f
 8. **Provide stream URL:**
    When prompted, enter the URL obtained from the ESP32-CAM module's web server.
 
+9. **Note**:
+    I have yet to update the code for stream url, because issues with multiprocessing. so you have to modify main.py for getting stream from esp32, Currently the camera for opencv is set to 0 change it to the stream url as a string for further changes 
+
 ## Usage
 
 Once the project is running, the OVG goggles will start streaming video from the ESP32-CAM module. Users can then perform various computer vision tasks by interfacing with the provided functionalities. Additionally, developers can extend the capabilities of OVG by contributing to the open-source project.
